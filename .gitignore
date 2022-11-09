@@ -3,4 +3,5 @@ a.out
 CHOWAES
 CHOWAES_OFS
 CHOWAES_OFS_DEBUG
-
+out/
+variants/variant*.c
