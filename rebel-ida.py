@@ -1,11 +1,13 @@
 import idaapi
-import ida_bytes
 import ida_frame
 import ida_struct
 import idc
 import idautils
 
 I_JUMPS = ['jmp', 'je', 'jne', 'jg', 'ja', 'jae', 'jl', 'jle', 'jb', 'jbe', 'jz', 'jnz', 'js', 'jns', 'jc', 'jnc', 'jo', 'jno', 'jcxz', 'jecxz', 'jrcxz']
+S_DATA   = ".data"
+S_TEXT   = ".text"
+S_RODATA = ".rodata"
 
 # TODO: Create a class that will hold XRefs to data/rodata
 # The class will include information about the places where the the data has
@@ -17,22 +19,22 @@ class Loop:
         self.endAddr = endea
 
 
+class XRef_Type:
+    CODE = 0
+    DATA = 1
+
+
 class XRef:
-    def __init__(self, address: int, crossref: int, type: bool) -> None:
+    def __init__(self, address: int, crossref: int, type: XRef_Type) -> None:
         self.address = address
-        self.ref_pointer = crossref
+        self.to_address = crossref
         self.type = type
-
-
-# class Location:
-#     def __init__(self, address: int) -> None:
-#         self.address = address
-#         self.called_from = []
 
 
 class Function:
     def __init__(self, address: int) -> None:
         self.f_addr = address
+        self.f_end = idc.find_func_end(address)
         self.f_loops = []
         self.f_xrefs = []
         self.f_locations = 0
@@ -52,8 +54,21 @@ class Function:
         self.f_callees.append(address)
 
 
+class Segment:
+    def __init__(self, seg_name: str) -> None:
+        segm = idaapi.get_segm_by_name(seg_name)
+        self.start_ea = segm.start_ea
+        self.end_ea = segm.end_ea
+
+    def has_addr(self, addr: int) -> bool:
+        if addr >= self.start_ea and addr <= self.end_ea:
+            return True
+        return False
+
+
 def contains_jump(instruction: str) -> bool:
-    if any(jump in instruction for jump in I_JUMPS):
+    # Sometimes integers are passed and program exits with error
+    if any(jump in str(instruction) for jump in I_JUMPS):
         return True
     return False
 
@@ -71,15 +86,13 @@ def count_loc(start: int, end: int) -> tuple[int, int]:
 
     return (cnt, cntj)
 
-
 def is_subroutine(loc: str) -> bool:
-    if loc.lower().find('sub') is not -1:
+    if loc.lower().find('sub') != -1:
         return True
     return False
 
-
 def is_location(loc: str) -> bool:
-    if loc.lower().find('loc') is not -1:
+    if loc.lower().find('loc') != -1:
         return True
     return False
 
@@ -88,18 +101,18 @@ def is_location(loc: str) -> bool:
 def get_loc_address(loc: str) -> int:
     return int('0x' + loc[loc.lower().find("loc_") + 4:], 16)
 
-
 def check_address_in_segment(addr: int) -> bool:
     pass
 
-TEXT_S = idaapi.get_segm_by_name(".text")
-# (RODATA_START, RODATA_END) = idaapi.get_segm_by_name
-addr = idc.get_next_func(TEXT_S.start_ea)
+segments = {
+    S_DATA: Segment(S_DATA),
+    S_TEXT: Segment(S_TEXT),
+    S_RODATA: Segment(S_RODATA)
+}
 
-
+addr = idc.get_next_func(segments[S_TEXT].start_ea)
 # Loops through subroutines
-
-while addr is not idc.BADADDR:
+while addr != idc.BADADDR:
     f_name = idc.get_func_name(addr)
     f_size = idc.get_func_attr(addr, idc.FUNCATTR_END) - addr - 4
     frame_id = ida_frame.get_frame(addr)
@@ -110,7 +123,8 @@ while addr is not idc.BADADDR:
     branching_cnt = 0
     instruction = addr
     func = Function(addr)
-    while instruction is not idc.BADADDR and instruction < idc.find_func_end(addr):
+    while instruction != idc.BADADDR and instruction < idc.find_func_end(addr):
+
         op = idc.print_insn_mnem(instruction)
         # Adrian's metric
         if len(op) > 0 and op[0] == 'b':
@@ -118,18 +132,28 @@ while addr is not idc.BADADDR:
         elif len(op) > 0 and op == 'mov' and idc.print_operand(instruction, 0) == 'pc':
             branching_cnt += 1
 
+        # Check is loop
         if contains_jump(instruction):
-            # TODO check if jumped address is lower than current address
-            # If so, this is a loop
             param = idc.print_operand(instruction)
             if is_location(param):
                 jump_address = get_loc_address(param)
                 if jump_address < instruction and idc.get_func_name(jump_address) == f_name:
                     func.add_loop(Loop(jump_address, instruction))
 
+        # Process XRef - Code reference
+        if any(idautils.XrefsFrom(instruction, 0)):
+            for ref in idautils.XrefsFrom(instruction, 0):
+                cxref = XRef(instruction, ref, XRef_Type.CODE)
+                func.add_xref(cxref)
+
+        if any(idautils.DataRefsFrom(instruction)):
+            for dref in idautils.DataRefsFrom(instruction):
+                dxref = XRef(instruction, ref,)
+                #TODO: handle .text xrefs and .[ro]data differently
+
         instruction = idc.next_head(instruction)
 
-    print("Function %s at %08x: size %d, frame %d, locs %d, jumps %d." % (f_name, addr, f_size, f_frame_size, f_locs, f_jumps))
+    # print("Function %s at %08x: size %d, frame %d, locs %d, jumps %d." % (f_name, addr, f_size, f_frame_size, f_locs, f_jumps))
 
     addr = idc.get_next_func(addr)
 
