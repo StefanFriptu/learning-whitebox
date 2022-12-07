@@ -20,8 +20,9 @@ class Loop:
 
 
 class XRef_Type:
-    CODE = 0
-    DATA = 1
+    CODE = 1
+    DATA = 2
+
 
 
 class XRef:
@@ -148,8 +149,12 @@ while addr != idc.BADADDR:
 
         if any(idautils.DataRefsFrom(instruction)):
             for dref in idautils.DataRefsFrom(instruction):
-                dxref = XRef(instruction, ref,)
-                #TODO: handle .text xrefs and .[ro]data differently
+                if segments[S_TEXT].has_addr(dref):
+                    cxref = XRef(instruction, dref, XRef_Type.CODE)
+                    func.add_xref(cxref)
+                elif segments[S_DATA].has_addr(dref) or segments[S_RODATA].has_addr(dref):
+                    dxref = XRef(instruction, dref, XRef_Type.DATA)
+                    func.add_xref(dxref)
 
         instruction = idc.next_head(instruction)
 
