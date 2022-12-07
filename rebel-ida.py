@@ -4,7 +4,12 @@ import ida_struct
 import idc
 import idautils
 
+
+# I_* list to be passed to contains_instr func
 I_JUMPS = ['jmp', 'je', 'jne', 'jg', 'ja', 'jae', 'jl', 'jle', 'jb', 'jbe', 'jz', 'jnz', 'js', 'jns', 'jc', 'jnc', 'jo', 'jno', 'jcxz', 'jecxz', 'jrcxz']
+I_LOGICAL = ['and', 'or', 'xor', 'test', 'not']
+
+# The interesting program segments for this script
 S_DATA   = ".data"
 S_TEXT   = ".text"
 S_RODATA = ".rodata"
@@ -54,6 +59,11 @@ class Function:
     def add_callee(self, address: int) -> None:
         self.f_callees.append(address)
 
+    def has_addr(self, address: int) -> bool:
+        if address >= self.f_addr and addr <= self.f_end:
+            return True
+        return False
+
 
 class Segment:
     def __init__(self, seg_name: str) -> None:
@@ -67,9 +77,9 @@ class Segment:
         return False
 
 
-def contains_jump(instruction: str) -> bool:
+def contains_instr(instruction: str, what: list) -> bool:
     # Sometimes integers are passed and program exits with error
-    if any(jump in str(instruction) for jump in I_JUMPS):
+    if any(instr in str(instruction) for instr in what):
         return True
     return False
 
@@ -81,7 +91,7 @@ def count_loc(start: int, end: int) -> tuple[int, int]:
         instruction = idc.GetDisasm(addr)
         if "loc_" in instruction:
             cnt += 1
-        if contains_jump(instruction):
+        if contains_instr(instruction, I_JUMPS):
             cntj += 1
         addr = idc.next_addr(addr)
 
@@ -134,12 +144,14 @@ while addr != idc.BADADDR:
             branching_cnt += 1
 
         # Check is loop
-        if contains_jump(instruction):
+        if contains_instr(instruction, I_JUMPS):
             param = idc.print_operand(instruction)
             if is_location(param):
                 jump_address = get_loc_address(param)
                 if jump_address < instruction and idc.get_func_name(jump_address) == f_name:
                     func.add_loop(Loop(jump_address, instruction))
+
+        # TODO: Check for bitwise operands
 
         # Process XRef - Code reference
         if any(idautils.XrefsFrom(instruction, 0)):
@@ -149,7 +161,7 @@ while addr != idc.BADADDR:
 
         if any(idautils.DataRefsFrom(instruction)):
             for dref in idautils.DataRefsFrom(instruction):
-                if segments[S_TEXT].has_addr(dref):
+                if segments[S_TEXT].has_addr(dref) and not func.has_addr(dref):
                     cxref = XRef(instruction, dref, XRef_Type.CODE)
                     func.add_xref(cxref)
                 elif segments[S_DATA].has_addr(dref) or segments[S_RODATA].has_addr(dref):
