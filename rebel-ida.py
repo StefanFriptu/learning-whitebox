@@ -54,6 +54,7 @@ class Function:
         self.f_callees = []
         self.f_bitops = 0
         self.f_frame_size = ida_struct.get_struc_size(ida_frame.get_frame(address))
+        self.f_adrian_branch_cnt = 0
 
     def add_loop(self, loop: Loop) -> None:
         self.f_loops.append(loop)
@@ -81,7 +82,8 @@ class Function:
         print("[*] detected loops: %d" % len(self.f_loops))
         print("[*] code xrefs: %d" % len(list(xref for xref in self.f_xrefs if xref.type == XRef_Type.CODE)))
         print("[*] data xrefs: %d" % len(list(xref for xref in self.f_xrefs if xref.type == XRef_Type.DATA)))
-        print("[*] bitwise operations: %d\n" % (self.f_bitops))
+        print("[*] bitwise operations: %d" % (self.f_bitops))
+        print("[*] adrian branching index: %d\n" % self.f_adrian_branch_cnt)
         # for xref in self.f_xrefs:
         #     xref.prettyprint()
 
@@ -194,6 +196,7 @@ while addr != idc.BADADDR:
                     func.add_xref(dxref)
 
         instruction = idc.next_head(instruction)
+    func.f_adrian_branch_cnt = branching_cnt
     func.prettyprint()
     # print("Function %s at %08x: size %d, frame %d, locs %d, jumps %d." % (f_name, addr, f_size, f_frame_size, f_locs, f_jumps))
 
