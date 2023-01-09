@@ -7,22 +7,31 @@ else
     mkdir out
 fi
 
-echo "Running obfuscator script.."
+echo "Running obfuscator script for variant1.."
 ./variants/variant1_opaque_encmath_aa_split.sh
-echo "Entering directory 'out'.."
+
 cd out
-echo "Bulding variant.."
+echo "Building variant1.."
 gcc -o variant1 variant1_CHOWAES_OFS.c
+cd ..
+echo "Building variant2.."
+./variants/variant2_llvm_obfuscator.sh
+
+remove_symbols() {
+    cd out
+    echo "Removing debug symbols.."
+    strip variant1
+    cd ..
+}
 
 if [ $# -eq 1 ]
 then
-    if [ $1 = "--no-symbols" ]
+    if [ $1 -ne "--add-symbols" ]
     then
-        echo "Removing debug symbols.."
-        strip variant1
+        remove_symbols
     fi
+else
+    remove_symbols
 fi
 
-echo "Exitting build directory.."
-cd ..
 echo "Done!"
