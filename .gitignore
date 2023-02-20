@@ -5,3 +5,6 @@ CHOWAES_OFS
 CHOWAES_OFS_DEBUG
 out/
 variants/variant*.c
+*.out.id*
+*.nam
+*.til

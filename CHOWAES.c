@@ -6,6 +6,8 @@
 #include "common/txor.h"
 #include "common/tyboxes.h"
 
+#include "../tigress/3.1/tigress.h"
+
 void init_tigress() {}
 
 void ShiftRows(unsigned char out[16])
@@ -58,10 +60,36 @@ void aes128_enc_wb_final(unsigned char in[16], unsigned char out[16])
             unsigned int cc = Tyboxes[i][j * 4 + 2][out[j * 4 + 2]];
             unsigned int dd = Tyboxes[i][j * 4 + 3][out[j * 4 + 3]];
 
-            out[j * 4 + 0] = (Txor[Txor[(aa >>  0) & 0xf][(bb >>  0) & 0xf]][Txor[(cc >>  0) & 0xf][(dd >>  0) & 0xf]]) | ((Txor[Txor[(aa >>  4) & 0xf][(bb >>  4) & 0xf]][Txor[(cc >>  4) & 0xf][(dd >>  4) & 0xf]]) << 4);
-            out[j * 4 + 1] = (Txor[Txor[(aa >>  8) & 0xf][(bb >>  8) & 0xf]][Txor[(cc >>  8) & 0xf][(dd >>  8) & 0xf]]) | ((Txor[Txor[(aa >> 12) & 0xf][(bb >> 12) & 0xf]][Txor[(cc >> 12) & 0xf][(dd >> 12) & 0xf]]) << 4);
-            out[j * 4 + 2] = (Txor[Txor[(aa >> 16) & 0xf][(bb >> 16) & 0xf]][Txor[(cc >> 16) & 0xf][(dd >> 16) & 0xf]]) | ((Txor[Txor[(aa >> 20) & 0xf][(bb >> 20) & 0xf]][Txor[(cc >> 20) & 0xf][(dd >> 20) & 0xf]]) << 4);
-            out[j * 4 + 3] = (Txor[Txor[(aa >> 24) & 0xf][(bb >> 24) & 0xf]][Txor[(cc >> 24) & 0xf][(dd >> 24) & 0xf]]) | ((Txor[Txor[(aa >> 28) & 0xf][(bb >> 28) & 0xf]][Txor[(cc >> 28) & 0xf][(dd >> 28) & 0xf]]) << 4);
+
+
+            unsigned int intabs0 = Txor[(aa >>  0) & 0xf][(bb >>  0) & 0xf];
+            unsigned int intcds0 = Txor[(cc >>  0) & 0xf][(dd >>  0) & 0xf];
+
+            unsigned int intabs4 = Txor[(aa >>  4) & 0xf][(bb >>  4) & 0xf];
+            unsigned int intcds4 = Txor[(cc >>  4) & 0xf][(dd >>  4) & 0xf];
+
+            unsigned int intabs8 = Txor[(aa >>  8) & 0xf][(bb >>  8) & 0xf];
+            unsigned int intcds8 = Txor[(cc >>  8) & 0xf][(dd >>  8) & 0xf];
+
+            unsigned int intabs12 = Txor[(aa >> 12) & 0xf][(bb >> 12) & 0xf];
+            unsigned int intcds12 = Txor[(cc >> 12) & 0xf][(dd >> 12) & 0xf];
+
+            unsigned int intabs16 = Txor[(aa >>  16) & 0xf][(bb >>  16) & 0xf];
+            unsigned int intcds16 = Txor[(cc >>  16) & 0xf][(dd >>  16) & 0xf];
+
+            unsigned int intabs20 = Txor[(aa >>  20) & 0xf][(bb >>  20) & 0xf];
+            unsigned int intcds20 = Txor[(cc >>  20) & 0xf][(dd >>  20) & 0xf];
+
+            unsigned int intabs24 = Txor[(aa >>  24) & 0xf][(bb >>  24) & 0xf];
+            unsigned int intcds24 = Txor[(cc >>  24) & 0xf][(dd >>  24) & 0xf];
+
+            unsigned int intabs28 = Txor[(aa >>  28) & 0xf][(bb >>  28) & 0xf];
+            unsigned int intcds28 = Txor[(cc >>  28) & 0xf][(dd >>  28) & 0xf];
+
+            out[j * 4 + 0] = (Txor[intabs0][intcds0]) | ((Txor[intabs4][intcds4]) << 4);
+            out[j * 4 + 1] = (Txor[intabs8][intcds8]) | ((Txor[intabs12][intcds12]) << 4);
+            out[j * 4 + 2] = (Txor[intabs16][intcds16]) | ((Txor[intabs20][intcds20]) << 4);
+            out[j * 4 + 3] = (Txor[intabs24][intcds24]) | ((Txor[intabs28][intcds28]) << 4);
         }
     }
 
