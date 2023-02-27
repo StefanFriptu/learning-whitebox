@@ -1,9 +1,13 @@
+from enum import Enum
 import idaapi
 import ida_frame
 import ida_struct
 import idc
 import idautils
 
+from statistics import fmean, variance, stdev
+from collections import Counter
+from math import log
 
 # I_* list to be passed to contains_instr func
 I_JUMPS = ['jmp', 'je', 'jne', 'jg', 'ja', 'jae', 'jl', 'jle', 'jb', 'jbe', 'jz', 'jnz', 'js', 'jns', 'jc', 'jnc', 'jo', 'jno', 'jcxz', 'jecxz', 'jrcxz']
@@ -24,10 +28,9 @@ class Loop:
         self.endAddr = endea
 
 
-class XRef_Type:
+class XRef_Type(Enum):
     CODE = 1
     DATA = 2
-
 
 
 class XRef:
@@ -48,6 +51,7 @@ class Function:
         self.f_end = idc.find_func_end(address)
         self.f_loops = []
         self.f_xrefs = []
+        self.f_xref_entropies = []
         self.f_locations = 0
         self.f_jumps = 0
         self.f_callers = []
@@ -68,6 +72,9 @@ class Function:
     def add_callee(self, address: int) -> None:
         self.f_callees.append(address)
 
+    def add_xref_entropy(self, entropy: float) -> None:
+        self.f_xref_entropies.append(entropy)
+
     def has_addr(self, address: int) -> bool:
         if address >= self.f_addr and addr <= self.f_end:
             return True
@@ -83,9 +90,13 @@ class Function:
         print("[*] code xrefs: %d" % len(list(xref for xref in self.f_xrefs if xref.type == XRef_Type.CODE)))
         print("[*] data xrefs: %d" % len(list(xref for xref in self.f_xrefs if xref.type == XRef_Type.DATA)))
         print("[*] bitwise operations: %d" % (self.f_bitops))
-        print("[*] adrian branching index: %d\n" % self.f_adrian_branch_cnt)
-        # for xref in self.f_xrefs:
-        #     xref.prettyprint()
+        print("[*] adrian branching index: %d" % self.f_adrian_branch_cnt)
+        if len(self.f_xref_entropies) > 0:
+            print(f"[*] code xrefs mean entropy: {fmean(self.f_xref_entropies)}")
+        print('\n')
+        for xref in self.f_xrefs:
+            if xref.type == XRef_Type.DATA:
+                xref.prettyprint()
 
 
 class Segment:
@@ -93,6 +104,9 @@ class Segment:
         segm = idaapi.get_segm_by_name(seg_name)
         self.start_ea = segm.start_ea
         self.end_ea = segm.end_ea
+        self.entropy = 0.0
+        self.variance = 0.0
+        self.stdd = 0.0
 
     def has_addr(self, addr: int) -> bool:
         if addr >= self.start_ea and addr <= self.end_ea:
@@ -106,7 +120,7 @@ def contains_instr(instruction: str, what: list) -> bool:
         return True
     return False
 
-def count_loc(start: int, end: int) -> tuple[int, int]:
+def count_loc_jumps(start: int, end: int) -> tuple[int, int]:
     cnt = 0
     cntj = 0
     addr = start
@@ -144,7 +158,69 @@ segments = {
     S_RODATA: Segment(S_RODATA)
 }
 
+def entropy(data: bytes) -> float:
+    if (len(data) == 0):
+        return 0.0
+    occurances = Counter(bytearray(data))
+    entropy = 0
+    for x in occurances.values():
+        p_x = float(x) / len(data)
+        entropy -= p_x * log(p_x, 2)
+    return entropy
+
+
+def calc_segments_entropy(block_size: int = 256, step_size: int = 128):
+    fill = '\x00'
+    for i in segments:
+        data = ""
+        curr_ea = segments[i].start_ea
+        # Load segment in memory
+        while curr_ea < segments[i].end_ea:
+            if idaapi.is_loaded(curr_ea):
+                data += chr(idaapi.get_byte(curr_ea))
+            else:
+                data += fill
+            curr_ea += 1
+        data = bytes(data, 'latin1')
+
+        # Calculate entropy per block
+        entropies = []
+        for block in (data[x:block_size + x] for x in range (0, len(data) - block_size, step_size)):
+            entropies.append(entropy(block))
+
+        segments[i].entropy = fmean(entropies)
+        segments[i].variance = variance(entropies)
+        segments[i].stdd = stdev(entropies)
+        # print(str(entropies))
+        print(f"Segment {i}: ------------")
+        print(f"[*] mean entropy: {segments[i].entropy}")
+        print(f"[*] std dev: {segments[i].stdd}")
+        print(f"[*] variance: {segments[i].variance}")
+
+
+#TODO: extract function for loading bytes to reduce code duplication
+#TODO: how to tune block_size? or how to end search for better entropy accuracy
+def calc_xref_entropy(f: Function, ref: XRef, block_size: int = 8192):
+    if ref.type == XRef_Type.DATA:
+        # Compute entropy from the to_address + some bytes (block_size)
+        temp = ""
+        fill = '\x00'
+        curr_ea = ref.to_address
+        while curr_ea <= ref.to_address + block_size:
+            if idaapi.is_loaded(curr_ea):
+                temp += chr(idaapi.get_byte(curr_ea))
+            else:
+                temp += fill
+            curr_ea += 1
+        temp = bytes(temp, 'latin1')
+        f.add_xref_entropy(entropy(temp))                
+
 addr = idc.get_next_func(segments[S_TEXT].start_ea)
+
+# Print segment data
+calc_segments_entropy()
+print("\n\n")
+
 # Loops through subroutines
 while addr != idc.BADADDR:
 
@@ -154,7 +230,7 @@ while addr != idc.BADADDR:
     f_size = idc.get_func_attr(addr, idc.FUNCATTR_END) - addr - 4
     frame_id = ida_frame.get_frame(addr)
     f_frame_size = ida_struct.get_struc_size(frame_id)
-    (func.f_locations, func.f_jumps) = count_loc(addr, addr + f_size)
+    (func.f_locations, func.f_jumps) = count_loc_jumps(addr, addr + f_size)
 
     # Subroutine analysis
     branching_cnt = 0
@@ -193,6 +269,7 @@ while addr != idc.BADADDR:
                     func.add_xref(cxref)
                 elif segments[S_DATA].has_addr(dref) or segments[S_RODATA].has_addr(dref):
                     dxref = XRef(instruction, dref, XRef_Type.DATA)
+                    calc_xref_entropy(func, dxref)
                     func.add_xref(dxref)
 
         instruction = idc.next_head(instruction)
