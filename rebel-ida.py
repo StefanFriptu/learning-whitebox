@@ -169,57 +169,51 @@ def entropy(data: bytes) -> float:
     return entropy
 
 
-def calc_segments_entropy(block_size: int = 256, step_size: int = 128):
-    fill = '\x00'
-    for i in segments:
-        data = ""
-        curr_ea = segments[i].start_ea
-        # Load segment in memory
-        while curr_ea < segments[i].end_ea:
-            if idaapi.is_loaded(curr_ea):
-                data += chr(idaapi.get_byte(curr_ea))
-            else:
-                data += fill
-            curr_ea += 1
-        data = bytes(data, 'latin1')
+def data_from_to(start_ea: int, end_ea: int, fill = '\x00') -> bytes:
+    curr_ea = start_ea
+    ret = ""
+    while curr_ea < end_ea:
+        if idaapi.is_loaded(curr_ea):
+            ret += chr(idaapi.get_byte(curr_ea))
+        else:
+            ret += fill
+        curr_ea += 1
+    return bytes(ret, 'latin1')
 
+
+def calc_segments_entropy(block_size: int = 256, step_size: int = 128):
+    entropiesOverSegments = []
+    for i in segments:
+        data = data_from_to(segments[i].start_ea, segments[i].end_ea)
         # Calculate entropy per block
         entropies = []
         for block in (data[x:block_size + x] for x in range (0, len(data) - block_size, step_size)):
             entropies.append(entropy(block))
+            entropiesOverSegments.append(entropy(block))
 
         segments[i].entropy = fmean(entropies)
         segments[i].variance = variance(entropies)
         segments[i].stdd = stdev(entropies)
-        # print(str(entropies))
         print(f"Segment {i}: ------------")
         print(f"[*] mean entropy: {segments[i].entropy}")
         print(f"[*] std dev: {segments[i].stdd}")
         print(f"[*] variance: {segments[i].variance}")
 
+    print(f"Binary mean entropy: {fmean(entropiesOverSegments)}")
+    print(f"Binary std dev: {stdev(entropiesOverSegments)}")
+    print(f"Binary variance: {variance(entropiesOverSegments)}")
 
-#TODO: extract function for loading bytes to reduce code duplication
+
 #TODO: how to tune block_size? or how to end search for better entropy accuracy
 def calc_xref_entropy(f: Function, ref: XRef, block_size: int = 8192):
     if ref.type == XRef_Type.DATA:
-        # Compute entropy from the to_address + some bytes (block_size)
-        temp = ""
-        fill = '\x00'
-        curr_ea = ref.to_address
-        while curr_ea <= ref.to_address + block_size:
-            if idaapi.is_loaded(curr_ea):
-                temp += chr(idaapi.get_byte(curr_ea))
-            else:
-                temp += fill
-            curr_ea += 1
-        temp = bytes(temp, 'latin1')
+        print(f"XRef size ${str(ida_struct.get_struc_size(ida_frame.get_frame(ref.to_address)))}")
+        temp = data_from_to(ref.to_address, ref.to_address + block_size)
         f.add_xref_entropy(entropy(temp))                
+
 
 addr = idc.get_next_func(segments[S_TEXT].start_ea)
 
-# Print segment data
-calc_segments_entropy()
-print("\n\n")
 
 # Loops through subroutines
 while addr != idc.BADADDR:
@@ -279,4 +273,8 @@ while addr != idc.BADADDR:
 
     addr = idc.get_next_func(addr)
 
+
+# Print segment data
+print("\n\n")
+calc_segments_entropy()
 print("END")
