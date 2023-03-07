@@ -8,3 +8,13 @@ variants/variant*.c
 *.out.id*
 *.nam
 *.til
+
+a.out.id0
+
+a.out.id1
+
+a.out.id2
+
+a.out.nam
+
+a.out.til

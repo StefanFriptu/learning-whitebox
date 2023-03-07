@@ -7,8 +7,10 @@ else
     mkdir out
 fi
 
-echo "Running obfuscator script for variants.."
-echo "vairant1.............."
+echo "Building unobfuscated variant0.."
+gcc -o out/variant0 CHOWAES.c
+
+echo "Running obfuscator script for variant1.."
 ./variants/variant1_opaque_encmath_aa_split.sh
 echo "vairant2.............."
 ./variants/variant3_tigress_encode_data.sh
