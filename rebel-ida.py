@@ -3,11 +3,15 @@ from statistics import fmean, variance, stdev
 from collections import Counter
 from math import log
 
+import csv
 import idaapi
 import ida_frame
 import ida_struct
 import idc
 import idautils
+import os
+
+CSV_HEADER = ['function name', 'size', 'frame size', 'internal locations', 'jumps', 'detected loops', 'code xrefs', 'data xrefs', 'bitwise operations', 'max consecutive movs', 'function entropy']
 
 # I_* list to be passed to contains_instr func
 I_JUMPS = ['jmp', 'je', 'jne', 'jg', 'ja', 'jae', 'jl', 'jle', 'jb', 'jbe', 'jz', 'jnz', 'js', 'jns', 'jc', 'jnc', 'jo', 'jno', 'jcxz', 'jecxz', 'jrcxz']
@@ -99,6 +103,23 @@ class Function:
         data = data_from_to(self.f_addr, self.f_end)
         return entropy(data)
 
+    def getCsvLine(self) -> list:
+        line = []
+        cxrefs = list(xref.entropy for xref in self.f_xrefs if xref.type == XRef_Type.CODE)
+        dxrefs = list(xref.entropy for xref in self.f_xrefs if xref.type == XRef_Type.DATA)
+        line.append(idaapi.get_func_name(self.f_addr)) # for labeling, drop in preprocessing
+        line.append(self.f_end - self.f_addr)
+        line.append(self.f_frame_size)
+        line.append(self.f_locations)
+        line.append(self.f_jumps)
+        line.append(len(self.f_loops))
+        line.append(len(cxrefs))
+        line.append(len(dxrefs))
+        line.append(self.f_bitops)
+        line.append(self.f_max_consecutive_movs)
+        line.append(round(self.f_entropy, 3))
+        return line
+
     def prettyprint(self) -> None:
         cxrefs = list(xref.entropy for xref in self.f_xrefs if xref.type == XRef_Type.CODE)
         dxrefs = list(xref.entropy for xref in self.f_xrefs if xref.type == XRef_Type.DATA)
@@ -112,7 +133,7 @@ class Function:
         print("[*] code xrefs: %d" % len(cxrefs))
         print("[*] data xrefs: %d" % len(dxrefs))
         print("[*] bitwise operations: %d" % (self.f_bitops))
-        print("[*] adrian branching index: %d" % self.f_adrian_branch_cnt)
+        print("[*] adrian branching index: %d" % self.f_adrian_branch_cnt) # not added into csv
         print("[*] max consecutive movs: %d" % self.f_max_consecutive_movs)
         print("[*] func entropy: %3f" % self.f_entropy)
         # if len(dxrefs) > 0:
@@ -249,6 +270,14 @@ def calc_segments_entropy(block_size: int = 256, step_size: int = 128):
     print(f"Binary variance: {variance(entropies_over_segments)}")
 
 
+# CSV specifics
+DATASET_FILE = '/home/stefan/Work/hidden-rice/obfuscated_dataset.csv'
+target_file = open(DATASET_FILE, 'a', encoding='utf-8')
+target_writer = csv.writer(target_file)
+if os.path.getsize(DATASET_FILE) == 0:
+    target_writer.writerow(CSV_HEADER)
+
+# Analysis
 addr = idc.get_next_func(segments[S_TEXT].start_ea)
 # Loops through subroutines
 while addr != idc.BADADDR:
@@ -311,11 +340,11 @@ while addr != idc.BADADDR:
         instruction = idc.next_head(instruction)
     func.f_adrian_branch_cnt = branching_cnt
     func.prettyprint()
-    # print("Function %s at %08x: size %d, frame %d, locs %d, jumps %d." % (f_name, addr, f_size, f_frame_size, f_locs, f_jumps))
+    target_writer.writerow(func.getCsvLine())
+    # print("Function %s at %08x: sizeimport typing %d, frame %d, locs %d, jumps %d." % (f_name, addr, f_size, f_frame_size, f_locs, f_jumps))
     addr = idc.get_next_func(addr)
 
-
-# Print segment data
+target_file.close()
 print("\n\n")
-calc_segments_entropy()
+# calc_segments_entropy()
 print("END")
