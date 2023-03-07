@@ -1,13 +1,13 @@
 from enum import Enum
+from statistics import fmean, variance, stdev
+from collections import Counter
+from math import log
+
 import idaapi
 import ida_frame
 import ida_struct
 import idc
 import idautils
-
-from statistics import fmean, variance, stdev
-from collections import Counter
-from math import log
 
 # I_* list to be passed to contains_instr func
 I_JUMPS = ['jmp', 'je', 'jne', 'jg', 'ja', 'jae', 'jl', 'jle', 'jb', 'jbe', 'jz', 'jnz', 'js', 'jns', 'jc', 'jnc', 'jo', 'jno', 'jcxz', 'jecxz', 'jrcxz']
@@ -19,7 +19,7 @@ S_TEXT   = ".text"
 S_RODATA = ".rodata"
 S_BSS    = '.bss'
 
-# TODO: Create a class that will hold XRefs to data/rodata
+#TODO: Create a class that will hold XRefs to data/rodata
 # The class will include information about the places where the the data has
 # been cross-referenced.
 
@@ -42,7 +42,7 @@ class XRef:
         self.to_address = crossref
         self.type = type
         self.entropy = None
-    
+
     #TODO: how to tune block_size? or how to end search for better entropy accuracy
     def calc_xref_entropy(self, block_size: int = 8192):
         temp = data_from_to(self.to_address, self.to_address + block_size)
@@ -184,18 +184,19 @@ def get_loc_address(loc: str) -> int:
 segments = {
     S_DATA: Segment(S_DATA),
     S_TEXT: Segment(S_TEXT),
-    S_RODATA: Segment(S_RODATA)
+    S_RODATA: Segment(S_RODATA),
+    S_BSS: Segment(S_BSS),
 }
 
 def entropy(data: bytes) -> float:
-    if (len(data) == 0):
+    if len(data) == 0:
         return 0.0
     occurances = Counter(bytearray(data))
-    entropy = 0
+    calc_entropy = 0
     for x in occurances.values():
         p_x = float(x) / len(data)
-        entropy -= p_x * log(p_x, 2)
-    return entropy
+        calc_entropy -= p_x * log(p_x, 2)
+    return calc_entropy
 
 
 def data_from_to(start_ea: int, end_ea: int, fill = '\x00') -> bytes:
@@ -219,22 +220,22 @@ def calc_data_entropy(data: bytes, block_size: int = 256, step_size: int = 128) 
 
 def calc_mean_data_entropy(data: bytes, block_size: int = 256, step_size: int = 128) -> float:
     entropies = calc_data_entropy(data, block_size, step_size)
-    if (len(entropies) == 0):
+    if len(entropies) == 0:
         return 0.0
     return fmean(entropies)
 
 
 def calc_segments_entropy(block_size: int = 256, step_size: int = 128):
-    entropiesOverSegments = []
-    for i in segments:
+    entropies_over_segments = []
+    for i in segments.items():
         data = data_from_to(segments[i].start_ea, segments[i].end_ea)
         # Calculate entropy per block
         entropies = []
         for block in (data[x:block_size + x] for x in range (0, len(data) - block_size, step_size)):
             entropies.append(entropy(block))
-            entropiesOverSegments.append(entropy(block))
+            entropies_over_segments.append(entropy(block))
 
-        if (len(entropies) > 0):
+        if len(entropies) > 0:
             segments[i].entropy = fmean(entropies)
             segments[i].variance = variance(entropies)
             segments[i].stdd = stdev(entropies)
@@ -243,9 +244,9 @@ def calc_segments_entropy(block_size: int = 256, step_size: int = 128):
             print(f"[*] std dev: {segments[i].stdd}")
             print(f"[*] variance: {segments[i].variance}")
 
-    print(f"Binary mean entropy: {fmean(entropiesOverSegments)}")
-    print(f"Binary std dev: {stdev(entropiesOverSegments)}")
-    print(f"Binary variance: {variance(entropiesOverSegments)}")
+    print(f"Binary mean entropy: {fmean(entropies_over_segments)}")
+    print(f"Binary std dev: {stdev(entropies_over_segments)}")
+    print(f"Binary variance: {variance(entropies_over_segments)}")
 
 
 addr = idc.get_next_func(segments[S_TEXT].start_ea)
@@ -304,7 +305,7 @@ while addr != idc.BADADDR:
                     xref = XRef(instruction, dref, XRef_Type.CODE)
                 elif segments[S_DATA].has_addr(dref) or segments[S_RODATA].has_addr(dref):
                     xref = XRef(instruction, dref, XRef_Type.DATA)
-                if xref is not None: 
+                if xref is not None:
                     func.add_xref(xref)
 
         instruction = idc.next_head(instruction)
