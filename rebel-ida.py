@@ -11,7 +11,7 @@ import idc
 import idautils
 import os
 
-CSV_HEADER = ['function name', 'size', 'frame size', 'internal locations', 'jumps', 'detected loops', 'code xrefs', 'data xrefs', 'bitwise operations', 'max consecutive movs', 'function entropy']
+CSV_HEADER = ['function name', 'size', 'frame size', 'internal locations', 'jumps', 'detected loops', 'code xrefs', 'data xrefs', 'xrefs to high entropy area', 'bitwise operations', 'max consecutive movs', 'function entropy']
 
 # I_* list to be passed to contains_instr func
 I_JUMPS = ['jmp', 'je', 'jne', 'jg', 'ja', 'jae', 'jl', 'jle', 'jb', 'jbe', 'jz', 'jnz', 'js', 'jns', 'jc', 'jnc', 'jo', 'jno', 'jcxz', 'jecxz', 'jrcxz']
@@ -60,10 +60,12 @@ ref_dict = {}
 
 class Function:
     def __init__(self, address: int) -> None:
+        self.f_name = ""
         self.f_addr = address
         self.f_end = idc.find_func_end(address)
         self.f_loops = []
         self.f_xrefs = []
+        self.f_xrefs_high_entropy = 0
         self.f_locations = 0
         self.f_jumps = 0
         self.f_callers = []
@@ -115,6 +117,7 @@ class Function:
         line.append(len(self.f_loops))
         line.append(len(cxrefs))
         line.append(len(dxrefs))
+        line.append(self.f_xrefs_high_entropy)
         line.append(self.f_bitops)
         line.append(self.f_max_consecutive_movs)
         line.append(round(self.f_entropy, 3))
@@ -132,6 +135,7 @@ class Function:
         print("[*] detected loops: %d" % len(self.f_loops))
         print("[*] code xrefs: %d" % len(cxrefs))
         print("[*] data xrefs: %d" % len(dxrefs))
+        print("[*] xrefs to high entropy area: %d" % self.f_xrefs_high_entropy)
         print("[*] bitwise operations: %d" % (self.f_bitops))
         print("[*] adrian branching index: %d" % self.f_adrian_branch_cnt) # not added into csv
         print("[*] max consecutive movs: %d" % self.f_max_consecutive_movs)
@@ -246,10 +250,10 @@ def calc_mean_data_entropy(data: bytes, block_size: int = 256, step_size: int = 
     return fmean(entropies)
 
 
-def calc_segments_entropy(block_size: int = 256, step_size: int = 128):
+def calc_segments_entropy(block_size: int = 256, step_size: int = 128) -> float:
     entropies_over_segments = []
-    for i in segments.items():
-        data = data_from_to(segments[i].start_ea, segments[i].end_ea)
+    for (key, segment) in segments.items():
+        data = data_from_to(segment.start_ea, segment.end_ea)
         # Calculate entropy per block
         entropies = []
         for block in (data[x:block_size + x] for x in range (0, len(data) - block_size, step_size)):
@@ -257,17 +261,18 @@ def calc_segments_entropy(block_size: int = 256, step_size: int = 128):
             entropies_over_segments.append(entropy(block))
 
         if len(entropies) > 0:
-            segments[i].entropy = fmean(entropies)
-            segments[i].variance = variance(entropies)
-            segments[i].stdd = stdev(entropies)
-            print(f"Segment {i}: ------------")
-            print(f"[*] mean entropy: {segments[i].entropy}")
-            print(f"[*] std dev: {segments[i].stdd}")
-            print(f"[*] variance: {segments[i].variance}")
+            segment.entropy = fmean(entropies)
+            segment.variance = variance(entropies)
+            segment.stdd = stdev(entropies)
+            print(f"Segment {key}: ------------")
+            print(f"[*] mean entropy: {segment.entropy}")
+            print(f"[*] std dev: {segment.stdd}")
+            print(f"[*] variance: {segment.variance}")
 
     print(f"Binary mean entropy: {fmean(entropies_over_segments)}")
     print(f"Binary std dev: {stdev(entropies_over_segments)}")
     print(f"Binary variance: {variance(entropies_over_segments)}")
+    return fmean(entropies_over_segments)
 
 
 # CSV specifics
@@ -287,6 +292,7 @@ while addr != idc.BADADDR:
     frame_id = ida_frame.get_frame(addr)
     f_frame_size = ida_struct.get_struc_size(frame_id)
     (func.f_locations, func.f_jumps) = count_loc_jumps(addr, addr + f_size)
+    func.f_name = f_name
 
     # Subroutine analysis
     branching_cnt = 0
@@ -339,12 +345,28 @@ while addr != idc.BADADDR:
 
         instruction = idc.next_head(instruction)
     func.f_adrian_branch_cnt = branching_cnt
-    func.prettyprint()
-    target_writer.writerow(func.getCsvLine())
+    ref_dict[func.f_name] = func
     # print("Function %s at %08x: sizeimport typing %d, frame %d, locs %d, jumps %d." % (f_name, addr, f_size, f_frame_size, f_locs, f_jumps))
     addr = idc.get_next_func(addr)
 
-target_file.close()
 print("\n\n")
-# calc_segments_entropy()
+binary_mean_entropy = calc_segments_entropy()
+
+for (key_addr, func) in ref_dict.items():
+    for xref in func.f_xrefs:
+        func_holding_xref = idc.get_func_name(xref.to_address)
+        if func_holding_xref:
+            if func_holding_xref in ref_dict.keys():
+                if ref_dict[func_holding_xref].f_entropy > binary_mean_entropy:
+                    func.f_xrefs_high_entropy += 1
+        else:
+            for (key, segment) in segments.items():
+                if segment.has_addr(xref.to_address):
+                    if segment.entropy > binary_mean_entropy:
+                        func.f_xrefs_high_entropy += 1
+    func.prettyprint()
+    target_writer.writerow(func.getCsvLine())
+
+target_file.close()
+
 print("END")
