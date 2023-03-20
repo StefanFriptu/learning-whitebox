@@ -55,7 +55,7 @@ class XRef:
     def prettyprint(self):
         print("XRef at %08x to %08x as %s." % (self.address, self.to_address, ("CODE" if self.type == XRef_Type.CODE else "DATA")))
 
-
+# Application ID AA00BUESN9
 ref_dict = {}
 
 class Function:
@@ -275,6 +275,14 @@ def calc_segments_entropy(block_size: int = 256, step_size: int = 128) -> float:
     return fmean(entropies_over_segments)
 
 
+def follow_xref(ref):
+    refs = list(idautils.DataRefsFrom(ref))
+    if (len(refs) > 0) and ref != refs[0]:
+        # print("Following %08x" % (refs[0]))
+        return follow_xref(refs[0])
+    else:
+        return ref
+
 # CSV specifics
 DATASET_FILE = '/home/stefan/Work/hidden-rice/obfuscated_dataset.csv'
 target_file = open(DATASET_FILE, 'a', encoding='utf-8')
@@ -338,8 +346,9 @@ while addr != idc.BADADDR:
                 xref = None
                 if segments[S_TEXT].has_addr(dref) and not func.has_addr(dref):
                     xref = XRef(instruction, dref, XRef_Type.CODE)
-                elif segments[S_DATA].has_addr(dref) or segments[S_RODATA].has_addr(dref):
-                    xref = XRef(instruction, dref, XRef_Type.DATA)
+                elif segments[S_DATA].has_addr(dref) or segments[S_RODATA].has_addr(dref) or segments[S_BSS].has_addr(dref):
+                    # print("Following %08x..." % (instruction))
+                    xref = XRef(instruction, follow_xref(dref), XRef_Type.DATA)
                 if xref is not None:
                     func.add_xref(xref)
 
@@ -351,12 +360,13 @@ while addr != idc.BADADDR:
 
 print("\n\n")
 binary_mean_entropy = calc_segments_entropy()
+ref_dict_keys = ref_dict.keys()
 
 for (key_addr, func) in ref_dict.items():
     for xref in func.f_xrefs:
         func_holding_xref = idc.get_func_name(xref.to_address)
         if func_holding_xref:
-            if func_holding_xref in ref_dict.keys():
+            if func_holding_xref in ref_dict_keys:
                 if ref_dict[func_holding_xref].f_entropy > binary_mean_entropy:
                     func.f_xrefs_high_entropy += 1
         else:
@@ -368,5 +378,4 @@ for (key_addr, func) in ref_dict.items():
     target_writer.writerow(func.getCsvLine())
 
 target_file.close()
-
 print("END")
