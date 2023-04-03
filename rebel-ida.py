@@ -182,7 +182,7 @@ def count_loc_jumps(start: int, end: int) -> tuple[int, int]:
             cnt += 1
         if contains_instr(instruction, I_JUMPS):
             cntj += 1
-        addr = idc.next_addr(addr)
+        addr = idc.next_head(addr)
 
     return (cnt, cntj)
 
@@ -236,7 +236,7 @@ def data_from_to(start_ea: int, end_ea: int, fill = '\x00') -> bytes:
     return bytes(ret, 'latin1')
 
 
-def calc_data_entropy(data: bytes, block_size: int = 256, step_size: int = 128) -> list:
+def calc_data_entropy(data: bytes, block_size: int = 256, step_size: int = 128) -> list:  # Step size?
     entropies = []
     for block in (data[x:block_size + x] for x in range (0, len(data) - block_size, step_size)):
         entropies.append(entropy(block))
@@ -275,11 +275,14 @@ def calc_segments_entropy(block_size: int = 256, step_size: int = 128) -> float:
     return fmean(entropies_over_segments)
 
 
-def follow_xref(ref):
-    refs = list(idautils.DataRefsFrom(ref))
-    if (len(refs) > 0) and ref != refs[0]:
-        # print("Following %08x" % (refs[0]))
-        return follow_xref(refs[0])
+def follow_xref(initial_address, ref):
+    added_val = 0
+    while len(list(idautils.DataRefsTo(ref+added_val))) > 1 and added_val <= 64:
+        added_val += 4
+    refs = list(idautils.DataRefsTo(ref+added_val))
+    # Maybe redundant check ref!=refs[0]
+    if (len(refs) > 0) and ref != refs[0] and refs[0] != initial_address:
+        return follow_xref(ref, refs[0])
     else:
         return ref
 
@@ -316,7 +319,7 @@ while addr != idc.BADADDR:
             branching_cnt += 1
 
         # Consecutive mov instructions used for initializations (i.e. tables)
-        if len(op) > 0 and op == 'mov':
+        if len(op) > 0 and (op == 'mov' or op == 'movs'):
             movs += 1
         else:
             if movs > func.f_max_consecutive_movs:
@@ -339,7 +342,7 @@ while addr != idc.BADADDR:
         if any(idautils.XrefsFrom(instruction, 0)):
             for ref in idautils.XrefsFrom(instruction, 0):
                 cxref = XRef(instruction, ref.to, XRef_Type.CODE)
-                # func.add_xref(cxref)
+                func.add_xref(cxref)
 
         if any(idautils.DataRefsFrom(instruction)):
             for dref in idautils.DataRefsFrom(instruction):
@@ -348,11 +351,15 @@ while addr != idc.BADADDR:
                     xref = XRef(instruction, dref, XRef_Type.CODE)
                 elif segments[S_DATA].has_addr(dref) or segments[S_RODATA].has_addr(dref) or segments[S_BSS].has_addr(dref):
                     # print("Following %08x..." % (instruction))
-                    xref = XRef(instruction, follow_xref(dref), XRef_Type.DATA)
+                    xref = XRef(instruction, follow_xref(instruction, dref), XRef_Type.DATA)
                 if xref is not None:
                     func.add_xref(xref)
 
         instruction = idc.next_head(instruction)
+    
+    if movs > func.f_max_consecutive_movs:
+        func.f_max_consecutive_movs = movs
+
     func.f_adrian_branch_cnt = branching_cnt
     ref_dict[func.f_name] = func
     # print("Function %s at %08x: sizeimport typing %d, frame %d, locs %d, jumps %d." % (f_name, addr, f_size, f_frame_size, f_locs, f_jumps))
@@ -364,16 +371,18 @@ ref_dict_keys = ref_dict.keys()
 
 for (key_addr, func) in ref_dict.items():
     for xref in func.f_xrefs:
-        func_holding_xref = idc.get_func_name(xref.to_address)
-        if func_holding_xref:
-            if func_holding_xref in ref_dict_keys:
-                if ref_dict[func_holding_xref].f_entropy > binary_mean_entropy:
-                    func.f_xrefs_high_entropy += 1
-        else:
-            for (key, segment) in segments.items():
-                if segment.has_addr(xref.to_address):
-                    if segment.entropy > binary_mean_entropy:
+        #print("0x%08x" % xref.to_address)
+        if xref.type == XRef_Type.DATA:
+            func_holding_xref = idc.get_func_name(xref.to_address)
+            if func_holding_xref:
+                if func_holding_xref in ref_dict_keys:
+                    if ref_dict[func_holding_xref].f_entropy > binary_mean_entropy:
                         func.f_xrefs_high_entropy += 1
+            else:
+                for (key, segment) in segments.items():
+                    if segment.has_addr(xref.to_address):
+                        if segment.entropy > binary_mean_entropy:
+                            func.f_xrefs_high_entropy += 1
     func.prettyprint()
     target_writer.writerow(func.getCsvLine())
 

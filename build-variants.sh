@@ -7,6 +7,9 @@ else
     mkdir out
 fi
 
+echo "Building simple AES implementation.."
+gcc -g AES.c -o out/simpleaes
+
 echo "Building unobfuscated variant0.."
 gcc -o out/variant0 CHOWAES.c
 
