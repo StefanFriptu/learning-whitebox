@@ -4,12 +4,12 @@ from collections import Counter
 from math import log
 
 import csv
+import os
 import idaapi
 import ida_frame
 import ida_struct
 import idc
 import idautils
-import os
 
 CSV_HEADER = ['function name', 'size', 'frame size', 'internal locations', 'jumps', 'detected loops', 'code xrefs', 'data xrefs', 'xrefs to high entropy area', 'bitwise operations', 'max consecutive movs', 'function entropy']
 
@@ -59,10 +59,11 @@ class XRef:
 ref_dict = {}
 
 class Function:
-    def __init__(self, address: int) -> None:
+    def __init__(self, address: int | None) -> None:
         self.f_name = ""
         self.f_addr = address
-        self.f_end = idc.find_func_end(address)
+        if address is not None:
+            self.f_end = idc.find_func_end(address)
         self.f_loops = []
         self.f_xrefs = []
         self.f_xrefs_high_entropy = 0
@@ -71,10 +72,16 @@ class Function:
         self.f_callers = []
         self.f_callees = []
         self.f_bitops = 0
-        self.f_frame_size = ida_struct.get_struc_size(ida_frame.get_frame(address))
+        if address is not None:
+            self.f_frame_size = ida_struct.get_struc_size(ida_frame.get_frame(address))
+        else:
+            self.f_frame_size = -1
         self.f_max_consecutive_movs = 0
         self.f_adrian_branch_cnt = 0
-        self.f_entropy = calc_mean_data_entropy(data_from_to(self.f_addr, self.f_end), step_size=16)
+        if address is not None:
+            self.f_entropy = calc_mean_data_entropy(data_from_to(self.f_addr, self.f_end), step_size=16)
+        else:
+            self.f_entropy = -1
 
     def add_loop(self, loop: Loop) -> None:
         self.f_loops.append(loop)
@@ -109,8 +116,8 @@ class Function:
         line = []
         cxrefs = list(xref.entropy for xref in self.f_xrefs if xref.type == XRef_Type.CODE)
         dxrefs = list(xref.entropy for xref in self.f_xrefs if xref.type == XRef_Type.DATA)
-        line.append(idaapi.get_func_name(self.f_addr)) # for labeling, drop in preprocessing
-        line.append(self.f_end - self.f_addr)
+        line.append(self.f_name) # for labeling, drop in preprocessing
+        line.append((self.f_end - self.f_addr) if self.f_addr is not None else 0)
         line.append(self.f_frame_size)
         line.append(self.f_locations)
         line.append(self.f_jumps)
@@ -127,8 +134,8 @@ class Function:
         cxrefs = list(xref.entropy for xref in self.f_xrefs if xref.type == XRef_Type.CODE)
         dxrefs = list(xref.entropy for xref in self.f_xrefs if xref.type == XRef_Type.DATA)
 
-        print("Function %s at %08x:" % (idc.get_func_name(self.f_addr), self.f_addr))
-        print("[*] size: %d" % (self.f_end - self.f_addr))
+        print("Function %s at %08x:" % (self.f_name, (self.f_addr if self.f_addr is not None else 0)))
+        print("[*] size: %d" % (self.f_end - self.f_addr) if self.f_addr is not None else 0)
         print("[*] frame size: %d" % self.f_frame_size)
         print("[*] internal locations: %d" % self.f_locations)
         print("[*] jumps: %d" % self.f_jumps)
@@ -173,6 +180,7 @@ def contains_instr(instruction: str, what: list) -> bool:
 
 
 def count_loc_jumps(start: int, end: int) -> tuple[int, int]:
+    # print("called for (%08x, %08x)" % (start, end))
     cnt = 0
     cntj = 0
     addr = start
@@ -183,6 +191,7 @@ def count_loc_jumps(start: int, end: int) -> tuple[int, int]:
         if contains_instr(instruction, I_JUMPS):
             cntj += 1
         addr = idc.next_head(addr)
+        # print("%08x" % addr)
 
     return (cnt, cntj)
 
@@ -295,6 +304,10 @@ if os.path.getsize(DATASET_FILE) == 0:
 
 # Analysis
 addr = idc.get_next_func(segments[S_TEXT].start_ea)
+func_global = Function(None)
+func_global.f_name = 'global'
+instruction = addr
+last_func_end = 0
 # Loops through subroutines
 while addr != idc.BADADDR:
     func = Function(addr)
@@ -308,8 +321,39 @@ while addr != idc.BADADDR:
     # Subroutine analysis
     branching_cnt = 0
     movs = 0
+    while instruction >= last_func_end and instruction < addr:
+        if func_global.f_addr == 0:
+            func_global.f_addr = instruction
+
+        op = idc.print_insn_mnem(instruction).lower()
+
+        # Consecutive mov instructions used for initializations (i.e. tables)
+        if len(op) > 0 and (op == 'mov' or op == 'movs'):
+            movs += 1
+        else:
+            if movs > func_global.f_max_consecutive_movs:
+                func_global.f_max_consecutive_movs = movs
+            movs = 0
+
+        if is_location(op):
+            func_global.f_jumps += 1
+
+        # Count bitwise operations
+        if contains_instr(op, I_LOGICAL):
+            func_global.f_bitops += 1
+
+        if any(idautils.DataRefsFrom(instruction)):
+            for dref in idautils.DataRefsFrom(instruction):
+                xref = None
+                if segments[S_DATA].has_addr(dref) or segments[S_RODATA].has_addr(dref) or segments[S_BSS].has_addr(dref):
+                    xref = XRef(instruction, follow_xref(instruction, dref), XRef_Type.DATA)
+                if xref is not None:
+                    func_global.add_xref(xref)
+        instruction = idc.next_head(instruction)
+
     instruction = addr
-    while instruction != idc.BADADDR and instruction < idc.find_func_end(addr):
+    last_func_end = idc.find_func_end(addr)
+    while instruction != idc.BADADDR and instruction < last_func_end:
 
         op = idc.print_insn_mnem(instruction).lower()
         # Adrian's metric
@@ -319,7 +363,7 @@ while addr != idc.BADADDR:
             branching_cnt += 1
 
         # Consecutive mov instructions used for initializations (i.e. tables)
-        if len(op) > 0 and (op == 'mov' or op == 'movs'):
+        if len(op) > 0 and (op in ('mov', 'movs')):
             movs += 1
         else:
             if movs > func.f_max_consecutive_movs:
@@ -356,7 +400,7 @@ while addr != idc.BADADDR:
                     func.add_xref(xref)
 
         instruction = idc.next_head(instruction)
-    
+
     if movs > func.f_max_consecutive_movs:
         func.f_max_consecutive_movs = movs
 
@@ -367,6 +411,7 @@ while addr != idc.BADADDR:
 
 print("\n\n")
 binary_mean_entropy = calc_segments_entropy()
+ref_dict[func_global.f_name] = func_global
 ref_dict_keys = ref_dict.keys()
 
 for (key_addr, func) in ref_dict.items():
