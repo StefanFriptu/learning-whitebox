@@ -7,14 +7,17 @@ else
     mkdir out
 fi
 
+echo "Building simple AES implementation.."
+gcc -g AES.c -o out/simpleaes
+
 echo "Building unobfuscated variant0.."
 gcc -o out/variant0 CHOWAES.c
 
 echo "Running obfuscator script for variant1.."
 ./variants/variant1_opaque_encmath_aa_split.sh
-echo "vairant2.............."
-./variants/variant3_tigress_encode_data.sh
 echo "vairant3.............."
+./variants/variant3_tigress_encode_data.sh
+echo "vairant4.............."
 ./variants/variant4_tigress_virtualize_function.sh
 
 cd out
@@ -44,7 +47,7 @@ remove_symbols() {
 
 if [ $# -eq 1 ]
 then
-    if [ $1 -ne "--add-symbols" ]
+    if [ $1 != "--add-symbols" ]
     then
         remove_symbols
     fi
