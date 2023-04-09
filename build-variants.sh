@@ -19,6 +19,10 @@ echo "vairant3.............."
 ./variants/variant3_tigress_encode_data.sh
 echo "vairant4.............."
 ./variants/variant4_tigress_virtualize_function.sh
+echo "variant5.............."
+./variants/variant5_tigress_virtualize_dynamic_obfs.sh
+echo "variant6.............."
+./variants/variant6_tigress_merge_virtualize_encodelit.sh
 
 cd out
 echo "Building variant1.."
@@ -29,6 +33,12 @@ gcc -o variant3 variant3_CHOWAES_OFS.c
 
 echo "Building variant4.."
 gcc -o variant4 variant4_CHOWAES_OFS.c
+
+echo "Building variant5.."
+gcc -o variant5 variant5_CHOWAES_OFS.c
+
+echo "Building variant6.."
+gcc -o variant6 variant6_CHOWAES_OFS.c
 
 cd ..
 echo "Building variant2.."
@@ -42,6 +52,8 @@ remove_symbols() {
     strip variant2
     strip variant3
     strip variant4
+    strip variant5
+    strip variant6
     cd ..
 }
 

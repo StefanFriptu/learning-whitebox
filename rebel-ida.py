@@ -72,6 +72,7 @@ class Function:
         self.f_callers = []
         self.f_callees = []
         self.f_bitops = 0
+        self.f_size = 0
         if address is not None:
             self.f_frame_size = ida_struct.get_struc_size(ida_frame.get_frame(address))
         else:
