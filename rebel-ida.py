@@ -77,7 +77,6 @@ class Function:
         else:
             self.f_frame_size = -1
         self.f_max_consecutive_movs = 0
-        self.f_adrian_branch_cnt = 0
         if address is not None:
             self.f_entropy = calc_mean_data_entropy(data_from_to(self.f_addr, self.f_end), step_size=16)
         else:
@@ -144,7 +143,6 @@ class Function:
         print("[*] data xrefs: %d" % len(dxrefs))
         print("[*] xrefs to high entropy area: %d" % self.f_xrefs_high_entropy)
         print("[*] bitwise operations: %d" % (self.f_bitops))
-        print("[*] adrian branching index: %d" % self.f_adrian_branch_cnt) # not added into csv
         print("[*] max consecutive movs: %d" % self.f_max_consecutive_movs)
         print("[*] func entropy: %3f" % self.f_entropy)
         # if len(dxrefs) > 0:
@@ -356,11 +354,6 @@ while addr != idc.BADADDR:
     while instruction != idc.BADADDR and instruction < last_func_end:
 
         op = idc.print_insn_mnem(instruction).lower()
-        # Adrian's metric
-        if len(op) > 0 and op[0] == 'b':
-            branching_cnt += 1
-        elif len(op) > 0 and op == 'mov' and idc.print_operand(instruction, 0).lower() == 'pc':
-            branching_cnt += 1
 
         # Consecutive mov instructions used for initializations (i.e. tables)
         if len(op) > 0 and (op in ('mov', 'movs')):
@@ -404,7 +397,6 @@ while addr != idc.BADADDR:
     if movs > func.f_max_consecutive_movs:
         func.f_max_consecutive_movs = movs
 
-    func.f_adrian_branch_cnt = branching_cnt
     ref_dict[func.f_name] = func
     # print("Function %s at %08x: sizeimport typing %d, frame %d, locs %d, jumps %d." % (f_name, addr, f_size, f_frame_size, f_locs, f_jumps))
     addr = idc.get_next_func(addr)
