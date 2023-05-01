@@ -407,9 +407,9 @@ binary_mean_entropy = calc_segments_entropy()
 ref_dict[func_global.f_name] = func_global
 ref_dict_keys = ref_dict.keys()
 
+# Calculate high entropy XRefs
 for (key_addr, func) in ref_dict.items():
     for xref in func.f_xrefs:
-        #print("0x%08x" % xref.to_address)
         if xref.type == XRef_Type.DATA:
             func_holding_xref = idc.get_func_name(xref.to_address)
             if func_holding_xref:
