@@ -121,14 +121,14 @@ class Function:
         print("[*] max consecutive movs: %d" % self.f_max_consecutive_movs)
         print("[*] func entropy: %3f" % self.f_entropy)
         print('\n')
-    
+
     def toList(self) -> list:
         return [
             (self.f_end - self.f_addr) if self.f_addr is not None else 0,
             self.f_frame_size,
             self.f_locations,
             self.f_jumps,
-            self.f_loops,
+            len(self.f_loops),
             len(list(xref.entropy for xref in self.f_xrefs if xref.type == XRef_Type.CODE)),
             len(list(xref.entropy for xref in self.f_xrefs if xref.type == XRef_Type.DATA)),
             self.f_xrefs_high_entropy,
@@ -393,19 +393,18 @@ for (key_addr, func) in ref_dict.items():
                         if segment.entropy > binary_mean_entropy:
                             func.f_xrefs_high_entropy += 1
     func.prettyprint()
-    # target_writer.writerow(func.getCsvLine())
 
 # Load SVM model
 with open("/home/stefan/Work/hidden-rice/whitebox_svm_classifier.pkl", "rb") as f:
     model = pickle.load(f)
 
-
+# Classify
 for (key_addr, func) in ref_dict.items():
-    currFunction = [
-        func.toList(),
-    ]
-    dataForPrediction = pandas.DataFrame(currFunction, columns=CSV_HEADER[1:])
+    if func.f_name == 'global':
+        continue
+    dataForPrediction = pandas.DataFrame(dict(zip(CSV_HEADER[1:], func.toList())), index=[0])
     prediction = model.predict(dataForPrediction)
-    print(f'Function {func.f_name} at {f.f_addr} predicted: {prediction}')
+    predictionStr = 'is white-box related' if prediction[0] == 1 else 'not related.'
+    print(f'Function {func.f_name} at {func.f_addr:08x} {predictionStr}')
 
 print("END")
