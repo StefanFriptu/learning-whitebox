@@ -1,3 +1,4 @@
+import numpy as np
 import pandas as pd
 from sklearn.svm import SVC
 from sklearn.model_selection import train_test_split, GridSearchCV
@@ -32,14 +33,24 @@ param_grid = [
         'C': [0.1, 1, 10, 100],
         'kernel': ['rbf'],
         'gamma': ['scale', 'auto', 0.1, 1, 10, 100]
+    },
+    {
+        'C': [0.1, 1, 10, 100],
+        'kernel': ['poly'],
+        'gamma': ['scale', 'auto'],
+        'degree': [2, 3, 4]
     }
 ]
 
 # Create the GridSearchCV object
 grid_search = GridSearchCV(estimator=classifier, param_grid=param_grid, cv=5, n_jobs=-1, verbose=2)
 
+# Add weights to features
+weights = np.ones(X_train.shape[0])
+weights[X_train.iloc[:, 7] == 1] = 2
+
 # Fit the GridSearchCV object to the training data
-grid_search.fit(X_train, y_train)
+grid_search.fit(X_train, y_train, sample_weight = weights)
 
 # Get the best hyperparameters
 best_params = grid_search.best_params_
