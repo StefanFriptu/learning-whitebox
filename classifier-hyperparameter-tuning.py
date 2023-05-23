@@ -5,7 +5,7 @@ from sklearn.metrics import accuracy_score
 from sklearn.pipeline import Pipeline
 
 # Load the dataset
-dataset_csv = pd.read_csv(r'./datasets/obfuscated_dataset_v1.csv')
+dataset_csv = pd.read_csv(r'./datasets/obfuscated_dataset_v1.1.csv')
 
 # Drop function name
 dataset_csv = dataset_csv.drop(columns=['function name'])
@@ -19,24 +19,31 @@ target = dataset_csv['target']
 
 X_train, X_test, y_train, y_test = train_test_split(features, target, test_size=0.2)
 
-# Create an SVM pipeline with StandardScaler for preprocessing
-pipeline = Pipeline([
-    ('classifier', SVC())
-])
+# Define the classifier
+classifier = SVC()
 
-# Define the hyperparameters for tuning
-param_grid = {
-    'classifier__C': [0.1, 1, 10, 100],
-    'classifier__kernel': ['linear', 'rbf', 'poly'],
-    'classifier__degree': [2, 3, 4],
-    'classifier__gamma': ['scale', 'auto']
-}
+# Define the hyperparameter grid
+param_grid = [
+    {
+        'C': [0.1, 1, 10, 100],
+        'kernel': ['linear'],
+    },
+    {
+        'C': [0.1, 1, 10, 100],
+        'kernel': ['rbf'],
+        'gamma': ['scale', 'auto', 0.1, 1, 10, 100]
+    }
+]
 
-# Perform Grid Search for hyperparameter tuning
-grid_search = GridSearchCV(pipeline, param_grid, refit=True, cv=5, verbose=2, scoring='accuracy')
+# Create the GridSearchCV object
+grid_search = GridSearchCV(estimator=classifier, param_grid=param_grid, cv=5, n_jobs=-1, verbose=2)
+
+# Fit the GridSearchCV object to the training data
 grid_search.fit(X_train, y_train)
 
-print("Best parameters found by Grid Search:", grid_search.best_params_)
+# Get the best hyperparameters
+best_params = grid_search.best_params_
+print("Best hyperparameters:", best_params)
 
 # Get the best model
 best_model = grid_search.best_estimator_

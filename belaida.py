@@ -21,7 +21,10 @@ I_LOGICAL = ['and', 'or', 'xor', 'test', 'not']
 S_DATA   = ".data"
 S_TEXT   = ".text"
 S_RODATA = ".rodata"
-S_BSS    = '.bss'
+S_BSS    = ".bss"
+
+# Define path to model
+MODEL_PATH = "/home/stefan/Work/hidden-rice/whitebox_svm_classifier.pkl"
 
 #TODO: Create a class that will hold XRefs to data/rodata
 # The class will include information about the places where the the data has
@@ -395,16 +398,24 @@ for (key_addr, func) in ref_dict.items():
     func.prettyprint()
 
 # Load SVM model
-with open("/home/stefan/Work/hidden-rice/whitebox_svm_classifier.pkl", "rb") as f:
+with open(MODEL_PATH, "rb") as f:
     model = pickle.load(f)
 
 # Classify
+related_functions = []
 for (key_addr, func) in ref_dict.items():
+    func.f_xrefs_high_entropy *= 2 # Apply feature weight 
     if func.f_name == 'global':
         continue
     dataForPrediction = pandas.DataFrame(dict(zip(CSV_HEADER[1:], func.toList())), index=[0])
-    prediction = model.predict(dataForPrediction)
-    predictionStr = 'is white-box related' if prediction[0] == 1 else 'not related.'
-    print(f'Function {func.f_name} at {func.f_addr:08x} {predictionStr}')
+    prediction = model.predict(dataForPrediction)[0] == 1
+    predictionStr = 'is white-box related' if prediction == True else 'not related.'
+    if prediction:
+        related_functions.append(f'Function {func.f_name} at 0x{func.f_addr:08x} {predictionStr}')
+    print(f'Function {func.f_name} at 0x{func.f_addr:08x} {predictionStr}')
+
+print(f'\n\nWhite-box related functions: {len(related_functions)}')
+for f in related_functions:
+    print(f"  * {f}")
 
 print("END")
