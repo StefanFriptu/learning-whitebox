@@ -3,7 +3,6 @@ import pandas as pd
 from sklearn.svm import SVC
 from sklearn.model_selection import train_test_split, GridSearchCV
 from sklearn.metrics import accuracy_score
-from sklearn.pipeline import Pipeline
 
 # Load the dataset
 dataset_csv = pd.read_csv(r'./datasets/obfuscated_dataset_v1.1.csv')
