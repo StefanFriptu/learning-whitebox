@@ -405,13 +405,14 @@ with open(MODEL_PATH, "rb") as f:
 related_functions = []
 for (key_addr, func) in ref_dict.items():
     func.f_xrefs_high_entropy *= 2 # Apply feature weight 
-    if func.f_name == 'global':
-        continue
     dataForPrediction = pandas.DataFrame(dict(zip(CSV_HEADER[1:], func.toList())), index=[0])
     prediction = model.predict(dataForPrediction)[0] == 1
     predictionStr = 'is white-box related' if prediction == True else 'not related.'
     if prediction:
         related_functions.append(f'Function {func.f_name} at 0x{func.f_addr:08x} {predictionStr}')
+    if func.f_name == 'global':
+        print(f'Function \'global code\' {predictionStr}')
+        continue
     print(f'Function {func.f_name} at 0x{func.f_addr:08x} {predictionStr}')
 
 print(f'\n\nWhite-box related functions: {len(related_functions)}')
