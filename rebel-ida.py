@@ -203,7 +203,16 @@ def is_subroutine(loc: str) -> bool:
 
 def is_location(loc: str) -> bool:
     if loc.lower().find('loc') != -1:
-        return True
+        strip_addr = loc[loc.lower().find("loc") + 3:]
+        if strip_addr.startswith('ret_'):
+            if all(c in string.hexdigits for c in strip_addr[strip_addr.lower().find("ret_") + 4:]):
+                return True
+            else:
+                return False
+        else:
+            if all(c in string.hexdigits for c in loc[loc.lower().find("loc_") + 4:]):
+                return True
+            return False  
     return False
 
 # Check if string is_location beforehand
@@ -244,21 +253,21 @@ def data_from_to(start_ea: int, end_ea: int, fill = '\x00') -> bytes:
     return bytes(ret, 'latin1')
 
 
-def calc_data_entropy(data: bytes, block_size: int = 256, step_size: int = 128) -> list:  # Step size?
+def calc_data_entropy(data: bytes, block_size: int = 128, step_size: int = 64) -> list:  # Step size?
     entropies = []
     for block in (data[x:block_size + x] for x in range (0, len(data) - block_size, step_size)):
         entropies.append(entropy(block))
     return entropies
 
 
-def calc_mean_data_entropy(data: bytes, block_size: int = 256, step_size: int = 128) -> float:
+def calc_mean_data_entropy(data: bytes, block_size: int = 128, step_size: int = 64) -> float:
     entropies = calc_data_entropy(data, block_size, step_size)
     if len(entropies) == 0:
         return 0.0
     return fmean(entropies)
 
 
-def calc_segments_entropy(block_size: int = 256, step_size: int = 128) -> float:
+def calc_segments_entropy(block_size: int = 128, step_size: int = 64) -> float:
     entropies_over_segments = []
     for (key, segment) in segments.items():
         data = data_from_to(segment.start_ea, segment.end_ea)
@@ -268,7 +277,7 @@ def calc_segments_entropy(block_size: int = 256, step_size: int = 128) -> float:
             entropies.append(entropy(block))
             entropies_over_segments.append(entropy(block))
 
-        if len(entropies) > 0:
+        if len(entropies) > 1:
             segment.entropy = fmean(entropies)
             segment.variance = variance(entropies)
             segment.stdd = stdev(entropies)

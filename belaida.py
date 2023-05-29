@@ -2,6 +2,7 @@ from enum import Enum
 from statistics import fmean, variance, stdev
 from collections import Counter
 from math import log
+import string
 
 import idaapi
 import ida_frame
@@ -24,7 +25,7 @@ S_RODATA = ".rodata"
 S_BSS    = ".bss"
 
 # Define path to model
-MODEL_PATH = "/home/stefan/Work/hidden-rice/whitebox_svm_classifier.pkl"
+MODEL_PATH = "/home/stefan/Work/hidden-rice/whitebox_svm_classifier_test.pkl"
 
 #TODO: Create a class that will hold XRefs to data/rodata
 # The class will include information about the places where the the data has
@@ -185,7 +186,16 @@ def is_subroutine(loc: str) -> bool:
 
 def is_location(loc: str) -> bool:
     if loc.lower().find('loc') != -1:
-        return True
+        strip_addr = loc[loc.lower().find("loc") + 3:]
+        if strip_addr.startswith('ret_'):
+            if all(c in string.hexdigits for c in strip_addr[strip_addr.lower().find("ret_") + 4:]):
+                return True
+            else:
+                return False
+        else:
+            if all(c in string.hexdigits for c in loc[loc.lower().find("loc_") + 4:]):
+                return True
+            return False  
     return False
 
 # Check if string is_location beforehand
@@ -226,21 +236,21 @@ def data_from_to(start_ea: int, end_ea: int, fill = '\x00') -> bytes:
     return bytes(ret, 'latin1')
 
 
-def calc_data_entropy(data: bytes, block_size: int = 256, step_size: int = 128) -> list:  # Step size?
+def calc_data_entropy(data: bytes, block_size: int = 128, step_size: int = 64) -> list:  # Step size?
     entropies = []
     for block in (data[x:block_size + x] for x in range (0, len(data) - block_size, step_size)):
         entropies.append(entropy(block))
     return entropies
 
 
-def calc_mean_data_entropy(data: bytes, block_size: int = 256, step_size: int = 128) -> float:
+def calc_mean_data_entropy(data: bytes, block_size: int = 128, step_size: int = 64) -> float:
     entropies = calc_data_entropy(data, block_size, step_size)
     if len(entropies) == 0:
         return 0.0
     return fmean(entropies)
 
 
-def calc_segments_entropy(block_size: int = 256, step_size: int = 128) -> float:
+def calc_segments_entropy(block_size: int = 128, step_size: int = 64) -> float:
     entropies_over_segments = []
     for (key, segment) in segments.items():
         data = data_from_to(segment.start_ea, segment.end_ea)
@@ -250,7 +260,7 @@ def calc_segments_entropy(block_size: int = 256, step_size: int = 128) -> float:
             entropies.append(entropy(block))
             entropies_over_segments.append(entropy(block))
 
-        if len(entropies) > 0:
+        if len(entropies) > 1:
             segment.entropy = fmean(entropies)
             segment.variance = variance(entropies)
             segment.stdd = stdev(entropies)
@@ -404,12 +414,15 @@ with open(MODEL_PATH, "rb") as f:
 # Classify
 related_functions = []
 for (key_addr, func) in ref_dict.items():
-    func.f_xrefs_high_entropy *= 2 # Apply feature weight 
+    func.f_xrefs_high_entropy *= 3 # Apply feature weight 
     dataForPrediction = pandas.DataFrame(dict(zip(CSV_HEADER[1:], func.toList())), index=[0])
     prediction = model.predict(dataForPrediction)[0] == 1
     predictionStr = 'is white-box related' if prediction == True else 'not related.'
     if prediction:
-        related_functions.append(f'Function {func.f_name} at 0x{func.f_addr:08x} {predictionStr}')
+        if str(func.f_addr).isnumeric():
+            related_functions.append(f'Function {func.f_name} at 0x{func.f_addr:08x} {predictionStr}')
+        else:
+            related_functions.append(f'Function {func.f_name} at {func.f_addr} {predictionStr}')
     if func.f_name == 'global':
         print(f'Function \'global code\' {predictionStr}')
         continue

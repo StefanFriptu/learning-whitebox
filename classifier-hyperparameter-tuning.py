@@ -46,7 +46,7 @@ grid_search = GridSearchCV(estimator=classifier, param_grid=param_grid, cv=5, n_
 
 # Add weights to features
 weights = np.ones(X_train.shape[0])
-weights[X_train.iloc[:, 7] == 1] = 2
+weights[X_train.iloc[:, 7] == 1] = 3
 
 # Fit the GridSearchCV object to the training data
 grid_search.fit(X_train, y_train, sample_weight = weights)
