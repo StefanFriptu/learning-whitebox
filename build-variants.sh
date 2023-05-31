@@ -25,6 +25,8 @@ echo "variant6.............."
 ./variants/variant6_tigress_merge_virtualize_encodelit.sh
 echo "variant7.............."
 ./variants/variant7_tigress_encode_data_encmath_opaque.sh
+echo "test variant - WhiteBoxAES.............."
+./variants/test_variant_WhiteBoxAES.sh
 
 cd out
 echo "Building variant1.."
@@ -50,6 +52,9 @@ gcc -o variant6 variant6_CHOWAES_OFS.c
 echo "Building variant7.."
 gcc -o variant7 variant7_CHOWAES_OFS.c
 
+echo "Building test variant - WhiteBoxAES.."
+gcc -o test_WhiteBoxAES_1_variant test_WhiteBoxAES_1_variant.c
+
 
 remove_symbols() {
     cd out
@@ -61,6 +66,7 @@ remove_symbols() {
     strip variant5
     strip variant6
     strip variant7
+    strip test_WhiteBoxAES_1_variant
     cd ..
 }
 
