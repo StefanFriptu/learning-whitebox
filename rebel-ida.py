@@ -5,6 +5,7 @@ from math import log
 
 import csv
 import os
+import string
 import idaapi
 import ida_frame
 import ida_struct

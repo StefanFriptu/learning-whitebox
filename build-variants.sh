@@ -13,6 +13,7 @@ gcc -g AES.c -o out/simpleaes
 echo "Building unobfuscated variant0.."
 gcc -o out/variant0 CHOWAES.c
 
+# Run Tigress obfuscator scripts
 echo "Running obfuscator script for variant1.."
 ./variants/variant1_opaque_encmath_aa_split.sh
 echo "vairant3.............."
@@ -25,7 +26,10 @@ echo "variant6.............."
 ./variants/variant6_tigress_merge_virtualize_encodelit.sh
 echo "variant7.............."
 ./variants/variant7_tigress_encode_data_encmath_opaque.sh
+echo "test variant - WhiteBoxAES.............."
+./variants/test_variant_WhiteBoxAES.sh
 
+# Build binaries
 cd out
 echo "Building variant1.."
 gcc -o variant1 variant1_CHOWAES_OFS.c
@@ -50,6 +54,12 @@ gcc -o variant6 variant6_CHOWAES_OFS.c
 echo "Building variant7.."
 gcc -o variant7 variant7_CHOWAES_OFS.c
 
+echo "Building test variant - WhiteBoxAES.."
+gcc -o test_WhiteBoxAES_1_variant test_WhiteBoxAES_1_variant.c
+
+cd ..
+echo "Building test variant - WhiteBoxAES LLVM obfuscation.."
+./variants/test_llvm_WhiteBoxAES.sh
 
 remove_symbols() {
     cd out
@@ -61,6 +71,8 @@ remove_symbols() {
     strip variant5
     strip variant6
     strip variant7
+    strip test_WhiteBoxAES_1_variant
+    strip test_WhiteBoxAES_1_llvm
     cd ..
 }
 
