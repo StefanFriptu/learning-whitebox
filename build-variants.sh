@@ -30,45 +30,61 @@ echo "test variant - WhiteBoxAES.............."
 ./variants/test_variant_WhiteBoxAES.sh
 echo "test variant - BUWhiteBoxAES............"
 ./variants/test_variant_BUWhiteBoxAES.sh
+echo "test variant - WhiteboxDES.............."
+./variants/test_variant_WhiteboxDES.sh
+echo "test variant - DES......................"
+./variants/test_variant_DES.sh
 
 # Build binaries
 cd out
-echo "Building variant1.."
-gcc -o variant1 variant1_CHOWAES_OFS.c
+echo "[Tigress] Building variant1.."
+gcc -w -o variant1 variant1_CHOWAES_OFS.c
 
 cd ..
-echo "Building variant2.."
+echo "[LLVM] Building variant2.."
 ./variants/variant2_llvm_obfuscator.sh
 
 cd out
-echo "Building variant3.."
-gcc -o variant3 variant3_CHOWAES_OFS.c
+echo "[Tigress] Building variant3.."
+gcc -w -o variant3 variant3_CHOWAES_OFS.c
 
-echo "Building variant4.."
-gcc -o variant4 variant4_CHOWAES_OFS.c
+echo "[Tigress] Building variant4.."
+gcc -w -o variant4 variant4_CHOWAES_OFS.c
 
-echo "Building variant5.."
-gcc -o variant5 variant5_CHOWAES_OFS.c
+echo "[Tigress] Building variant5.."
+gcc -w -o variant5 variant5_CHOWAES_OFS.c
 
-echo "Building variant6.."
-gcc -o variant6 variant6_CHOWAES_OFS.c
+echo "[Tigress] Building variant6.."
+gcc -w -o variant6 variant6_CHOWAES_OFS.c
 
-echo "Building variant7.."
-gcc -o variant7 variant7_CHOWAES_OFS.c
+echo "[Tigress] Building variant7.."
+gcc -w -o variant7 variant7_CHOWAES_OFS.c
 
-echo "Building test variant - WhiteBoxAES.."
-gcc -o test_WhiteBoxAES_1_variant test_WhiteBoxAES_1_variant.c
+echo "[Tigress] Building test variant - WhiteBoxAES.."
+gcc -w -o test_WhiteBoxAES_1_variant test_WhiteBoxAES_1_variant.c
 
-echo "Building test variant - BU-Whitebox-Aes Tigress.."
-gcc -o test_BUWhiteBoxAes_variant test_BUWhiteBoxAes_variant.c
+echo "[Tigress] Building test variant - BU-Whitebox-Aes.."
+gcc -w -o test_BUWhiteBoxAes_variant test_BUWhiteBoxAes_variant.c
+
+echo "[Tigress] Building test variant - WhiteboxDES.."
+gcc -w -o test_WhiteboxDES_variant test_WhiteboxDES_variant.c
+
+echo "[Tigress] Building test variant - DES.."
+gcc -w -o test_DES_variant test_DES_variant.c
 
 cd ..
-echo "Building test variant - WhiteBoxAES LLVM obfuscation.."
+echo "[LLVM] Building test variant - WhiteBoxAES LLVM obfuscation.."
 ./variants/test_llvm_WhiteBoxAES.sh
 
-echo "Building test variant - BU-Whitebox-Aes LLVM obfuscation.."
+echo "[LLVM] Building test variant - BU-Whitebox-Aes LLVM obfuscation.."
 ./variants/test_llvm_BUWhiteBoxAES.sh
 
+# LLVM fails compiling this
+# echo "[LLVM] Building test variant - WhiteboxDES LLVM.."
+# ./variants/test_llvm_WhiteboxDES.sh
+
+echo "[LLVM] Building test variant - DES LLVM.."
+./variants/test_llvm_DES.sh
 
 remove_symbols() {
     cd out
@@ -84,6 +100,10 @@ remove_symbols() {
     strip test_WhiteBoxAES_1_llvm
     strip test_BUWhiteBoxAes_variant
     strip test_BUWhiteBoxAes_llvm
+    strip test_WhiteboxDES_variant
+    # strip test_WhiteboxDES_llvm
+    strip test_DES_variant
+    strip test_DES_llvm
     cd ..
 }
 
