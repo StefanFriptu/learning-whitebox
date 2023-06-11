@@ -4,6 +4,10 @@
 #define UNKNOWN_KEYSIZE 11
 #define MEMORY_ALLOCATION_PROBLEM 33
 
+#include "../tigress/3.1/tigress.h"
+
+void init_tigress() {}
+
 // Implementation: S-Box
 
 unsigned char sbox[256] = {

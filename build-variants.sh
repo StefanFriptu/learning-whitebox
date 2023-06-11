@@ -34,6 +34,8 @@ echo "test variant - WhiteboxDES.............."
 ./variants/test_variant_WhiteboxDES.sh
 echo "test variant - DES......................"
 ./variants/test_variant_DES.sh
+echo "test variant - AES......................"
+./variants/test_variant_AES.sh
 
 # Build binaries
 cd out
@@ -72,6 +74,9 @@ gcc -w -o test_WhiteboxDES_variant test_WhiteboxDES_variant.c
 echo "[Tigress] Building test variant - DES.."
 gcc -w -o test_DES_variant test_DES_variant.c
 
+echo "[Tigress] Building test variant - AES.."
+gcc -w -o test_AES_variant test_AES_variant.c
+
 cd ..
 echo "[LLVM] Building test variant - WhiteBoxAES LLVM obfuscation.."
 ./variants/test_llvm_WhiteBoxAES.sh
@@ -85,6 +90,9 @@ echo "[LLVM] Building test variant - BU-Whitebox-Aes LLVM obfuscation.."
 
 echo "[LLVM] Building test variant - DES LLVM.."
 ./variants/test_llvm_DES.sh
+
+echo "[LLVM] Building test variant - AES LLVM.."
+./variants/test_llvm_AES.sh
 
 remove_symbols() {
     cd out
@@ -104,6 +112,8 @@ remove_symbols() {
     # strip test_WhiteboxDES_llvm
     strip test_DES_variant
     strip test_DES_llvm
+    strip test_AES_variant
+    strip test_AES_llvm
     cd ..
 }
 
