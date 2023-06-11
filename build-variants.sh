@@ -28,6 +28,8 @@ echo "variant7.............."
 ./variants/variant7_tigress_encode_data_encmath_opaque.sh
 echo "test variant - WhiteBoxAES.............."
 ./variants/test_variant_WhiteBoxAES.sh
+echo "test variant - BUWhiteBoxAES............"
+./variants/test_variant_BUWhiteBoxAES.sh
 
 # Build binaries
 cd out
@@ -57,9 +59,16 @@ gcc -o variant7 variant7_CHOWAES_OFS.c
 echo "Building test variant - WhiteBoxAES.."
 gcc -o test_WhiteBoxAES_1_variant test_WhiteBoxAES_1_variant.c
 
+echo "Building test variant - BU-Whitebox-Aes Tigress.."
+gcc -o test_BUWhiteBoxAes_variant test_BUWhiteBoxAes_variant.c
+
 cd ..
 echo "Building test variant - WhiteBoxAES LLVM obfuscation.."
 ./variants/test_llvm_WhiteBoxAES.sh
+
+echo "Building test variant - BU-Whitebox-Aes LLVM obfuscation.."
+./variants/test_llvm_BUWhiteBoxAES.sh
+
 
 remove_symbols() {
     cd out
@@ -73,6 +82,8 @@ remove_symbols() {
     strip variant7
     strip test_WhiteBoxAES_1_variant
     strip test_WhiteBoxAES_1_llvm
+    strip test_BUWhiteBoxAes_variant
+    strip test_BUWhiteBoxAes_llvm
     cd ..
 }
 
